@@ -1,18 +1,22 @@
 package es.unjfsc.planificador.compartido.nucleo.modelo;
 
-/**
- * Métricas de un proceso:
- * C = llegada, T = ráfaga, E = espera, F = tiempo de finalización medido desde la llegada
- * (instante de fin - C), P = penalización.
- * La penalización se calcula como F / T.
- */
-public record MetricaProceso(String procesoId, int llegada, int rafaga, int espera, int finalizacion,
-                             double penalizacion) {
 
-    public static MetricaProceso de(Proceso proceso) {
-        int fin = proceso.getTiempoFinalizacion() == null ? 0 : proceso.getTiempoFinalizacion() - proceso.getLlegada();
-        double penalizacion = proceso.getRafaga() > 0 ? (double) fin / proceso.getRafaga() : 0;
+public record MetricaProceso(String procesoId, int llegada, int rafaga, int espera, int finalizacion) {
+
+    public static MetricaProceso de(Proceso proceso, int reloj) {
+        if (proceso.getTiempoFinalizacion() != null) {
+            int fin = proceso.getTiempoFinalizacion() - proceso.getLlegada();
+            int espera = Math.max(0, fin - proceso.getRafaga());
+            return new MetricaProceso(proceso.getId(), proceso.getLlegada(), proceso.getRafaga(),
+                    espera, fin);
+        }
+        if (reloj <= proceso.getLlegada()) {
+            return new MetricaProceso(proceso.getId(), proceso.getLlegada(), proceso.getRafaga(), 0, 0);
+        }
+        int ejecutado = proceso.getRafaga() - proceso.getTiempoRestante();
+        int espera = Math.max(0, reloj - proceso.getLlegada() - ejecutado);
+        int fin = Math.max(0, reloj - proceso.getLlegada());
         return new MetricaProceso(proceso.getId(), proceso.getLlegada(), proceso.getRafaga(),
-                proceso.getTiempoEspera(), fin, penalizacion);
+                espera, fin);
     }
 }

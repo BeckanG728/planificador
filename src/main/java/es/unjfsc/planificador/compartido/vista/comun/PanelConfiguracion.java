@@ -9,7 +9,6 @@ import javax.swing.JPanel;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.GridLayout;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.util.ArrayList;
@@ -17,11 +16,12 @@ import java.util.List;
 
 /**
  * Panel de parámetros de los procesos (autos): permite editar los parámetros que declara
- * cada algoritmo mientras la simulación está detenida y agregar o quitar procesos.
+ * cada algoritmo mientras la simulación está detenida.
  * Se sitúa a la derecha de las pistas.
  *
  * <p>Las columnas se generan a partir de {@link LogicaVisual#parametros()}, así que el panel
- * no cambia al añadir un algoritmo: solo cambia lo que el caso declara.</p>
+ * no cambia al añadir un algoritmo: solo cambia lo que el caso declara. Los procesos son los
+ * cinco del mock: aquí no se dan de alta ni de baja.</p>
  */
 public class PanelConfiguracion extends JPanel {
 
@@ -35,14 +35,11 @@ public class PanelConfiguracion extends JPanel {
     private final Planificador planificador;
     private final List<ParametroProceso> parametros;
     private final JPanel filas = new JPanel();
-    private final ComponentesRedondeados.Boton agregar = Tema.boton("Agregar", true);
-    private final ComponentesRedondeados.Boton quitar = Tema.boton("Quitar");
     private final List<ComponentesRedondeados.Campo> campos = new ArrayList<>();
 
     private boolean editables = true;
 
-    public PanelConfiguracion(Planificador planificador, LogicaVisual logicaVisual,
-                              Runnable alAgregar, Runnable alQuitar) {
+    public PanelConfiguracion(Planificador planificador, LogicaVisual logicaVisual) {
         super(new BorderLayout(0, 8));
         this.planificador = planificador;
         this.parametros = logicaVisual.parametros();
@@ -53,29 +50,17 @@ public class PanelConfiguracion extends JPanel {
         setPreferredSize(new Dimension(ancho, 0));
         setMinimumSize(new Dimension(ancho, 0));
 
-        agregar.setToolTipText("Agrega un proceso (máximo " + planificador.maximoProcesos() + ")");
-        quitar.setToolTipText("Quita el último proceso agregado");
-
-        JPanel acciones = new JPanel(new GridLayout(1, 2, 6, 0));
-        acciones.setOpaque(false);
-        acciones.add(agregar);
-        acciones.add(quitar);
-
         filas.setOpaque(false);
         filas.setLayout(new BoxLayout(filas, BoxLayout.Y_AXIS));
         construirFilas();
 
-        agregar.addActionListener(e -> alAgregar.run());
-        quitar.addActionListener(e -> alQuitar.run());
-
-        add(acciones, BorderLayout.NORTH);
         add(filas, BorderLayout.CENTER);
     }
 
     /** Vuelve a dibujar una fila por proceso del planificador. */
     public void reconstruir() {
         construirFilas();
-        actualizarBotones();
+        actualizarEdicion();
     }
 
     private void construirFilas() {
@@ -156,11 +141,8 @@ public class PanelConfiguracion extends JPanel {
         campo.setText(String.valueOf(parametro.lector().apply(proceso)));
     }
 
-    /** Habilita o deshabilita la edición y refleja el estado de los botones. */
-    public void actualizarBotones() {
-        agregar.setEnabled(planificador.getProcesos().size() < planificador.maximoProcesos());
-        quitar.setEnabled(!planificador.isEjecutando()
-                && planificador.getProcesos().size() > planificador.minimoProcesos());
+    /** Habilita o deshabilita la edición de los parámetros. */
+    public void actualizarEdicion() {
         boolean habilitada = !planificador.isEjecutando();
         if (habilitada != editables) {
             editables = habilitada;

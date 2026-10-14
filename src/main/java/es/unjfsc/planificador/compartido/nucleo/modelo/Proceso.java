@@ -1,34 +1,40 @@
 package es.unjfsc.planificador.compartido.nucleo.modelo;
 
-/**
- * Proceso de la simulación: equivalente a un auto de la carrera.
- *
- * <p>Configuración: identificador, instante de llegada (C) y ráfaga de CPU (T).
- * Estado de ejecución: unidades restantes, estado, tiempo de espera,
- * instante de inicio e instante de finalización.</p>
- */
 public class Proceso {
 
     private final String id;
     private int llegada;
     private int rafaga;
+    private int prioridad;
 
     private int tiempoRestante;
     private EstadoProceso estado;
-    private int tiempoEspera;
     private Integer tiempoInicio;
     private Integer tiempoFinalizacion;
 
+    /**
+     * Proceso de los casos FIFO, SJF, SRTF y Round Robin: solo lleva C y T.
+     */
     public Proceso(String id, int llegada, int rafaga) {
+        this(id, llegada, rafaga, 1);
+    }
+
+    /**
+     * Proceso del caso de prioridades: además de C y T, lleva su prioridad P.
+     */
+    public Proceso(String id, int llegada, int rafaga, int prioridad) {
         this.id = id;
         setLlegada(llegada);
         setRafaga(rafaga);
+        setPrioridad(prioridad);
         reiniciar();
     }
 
-    /** Copia de otro proceso con su misma configuración y su estado inicial. */
+    /**
+     * Copia de otro proceso con su misma configuración y su estado inicial.
+     */
     public Proceso(Proceso otro) {
-        this(otro.id, otro.llegada, otro.rafaga);
+        this(otro.id, otro.llegada, otro.rafaga, otro.prioridad);
     }
 
     public String getId() {
@@ -51,12 +57,16 @@ public class Proceso {
         this.rafaga = Math.max(1, rafaga);
     }
 
-    public int getTiempoRestante() {
-        return tiempoRestante;
+    public int getPrioridad() {
+        return prioridad;
     }
 
-    public void setTiempoRestante(int tiempoRestante) {
-        this.tiempoRestante = Math.max(0, tiempoRestante);
+    public void setPrioridad(int prioridad) {
+        this.prioridad = Math.max(1, prioridad);
+    }
+
+    public int getTiempoRestante() {
+        return tiempoRestante;
     }
 
     public EstadoProceso getEstado() {
@@ -65,10 +75,6 @@ public class Proceso {
 
     public void setEstado(EstadoProceso estado) {
         this.estado = estado;
-    }
-
-    public int getTiempoEspera() {
-        return tiempoEspera;
     }
 
     public Integer getTiempoInicio() {
@@ -87,48 +93,36 @@ public class Proceso {
         this.tiempoFinalizacion = tiempoFinalizacion;
     }
 
-    /** Unidades de CPU ya ejecutadas por el proceso. */
+    /**
+     * Unidades de CPU ya ejecutadas por el proceso.
+     */
     public int getEjecutado() {
         return Math.max(0, rafaga - tiempoRestante);
     }
 
-    /** true si el proceso ya no tiene trabajo pendiente. */
+    /**
+     * true si el proceso ya no tiene trabajo pendiente.
+     */
     public boolean isTerminado() {
         return estado == EstadoProceso.TERMINADO;
     }
 
     /**
-     * Suma una unidad al tiempo de espera si el proceso sigue en espera.
-     *
-     * <p>Un proceso solo espera a partir del instante siguiente al de su llegada,
-     * de modo que la espera medida cumple {@code E = F - C - T}.</p>
-     *
-     * @param reloj instante actual de la simulación
+     * Consume una unidad de CPU.
      */
-    public void ajustarTiempoEspera(int reloj) {
-        if (estado == EstadoProceso.ESPERANDO && tiempoRestante > 0 && llegada < reloj) {
-            tiempoEspera++;
-        }
-    }
-
-    /** Consume una unidad de CPU. */
     public void ejecutarUnidad() {
         if (tiempoRestante > 0) {
             tiempoRestante--;
         }
     }
 
-    /** Restaura el estado inicial del proceso, conservando su configuración. */
+    /**
+     * Restaura el estado inicial del proceso, conservando su configuración.
+     */
     public void reiniciar() {
         tiempoRestante = rafaga;
         estado = EstadoProceso.ESPERANDO;
-        tiempoEspera = 0;
         tiempoInicio = null;
         tiempoFinalizacion = null;
-    }
-
-    @Override
-    public String toString() {
-        return "Proceso[" + id + ", C=" + llegada + ", T=" + rafaga + "]";
     }
 }

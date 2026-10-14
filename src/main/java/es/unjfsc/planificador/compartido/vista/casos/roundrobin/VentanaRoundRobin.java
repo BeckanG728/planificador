@@ -1,12 +1,12 @@
 package es.unjfsc.planificador.compartido.vista.casos.roundrobin;
 
-import es.unjfsc.planificador.compartido.nucleo.algoritmos.roundrobin.PlanificadorRoundRobin;
+import es.unjfsc.planificador.compartido.nucleo.algoritmos.apropiativos.PlanificadorRoundRobin;
 import es.unjfsc.planificador.compartido.nucleo.motor.Planificador;
 import es.unjfsc.planificador.compartido.vista.comun.ComponentesRedondeados;
 import es.unjfsc.planificador.compartido.vista.comun.Tema;
 import es.unjfsc.planificador.compartido.vista.comun.VentanaSimulacion;
 
-import javax.swing.JComponent;
+import javax.swing.*;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.util.ArrayList;
@@ -15,8 +15,8 @@ import java.util.List;
 /**
  * Ventana de la simulación con planificación Round Robin.
  *
- * <p>Añade a la cabecera el campo del quantum, entre los botones de transporte y los de
- * velocidad. Se habilita solo con la simulación detenida, igual que los parámetros de los
+ * <p>Añade a la cabecera el campo del quantum, junto a los botones de transporte.
+ * Se habilita solo con la simulación detenida, igual que los parámetros de los
  * procesos, así que el valor vigente se toma al empezar la siguiente simulación.</p>
  */
 public class VentanaRoundRobin extends VentanaSimulacion {

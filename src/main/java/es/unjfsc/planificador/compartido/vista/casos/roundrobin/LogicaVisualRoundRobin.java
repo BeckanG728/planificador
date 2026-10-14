@@ -1,9 +1,11 @@
 package es.unjfsc.planificador.compartido.vista.casos.roundrobin;
 
-import es.unjfsc.planificador.compartido.nucleo.algoritmos.roundrobin.PlanificadorRoundRobin;
+import es.unjfsc.planificador.compartido.nucleo.algoritmos.apropiativos.PlanificadorRoundRobin;
 import es.unjfsc.planificador.compartido.vista.comun.LogicaVisual;
 
-/** Presentación del caso Round Robin, con el quantum vigente en la insignia. */
+/**
+ * Presentación del caso Round Robin, con el quantum vigente en la insignia.
+ */
 public class LogicaVisualRoundRobin implements LogicaVisual {
 
     private final PlanificadorRoundRobin planificador;
@@ -25,6 +27,6 @@ public class LogicaVisualRoundRobin implements LogicaVisual {
     @Override
     public String descripcion() {
         return "Round Robin: cada proceso ocupa el motor un quantum de tiempo y luego vuelve "
-                + "al final de la cola.";
+               + "al final de la cola.";
     }
 }

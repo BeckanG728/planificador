@@ -20,11 +20,11 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Panel de métricas finales: tabla por proceso (C, T, E, F, P) y promedios.
+ * Panel de métricas finales: tabla por proceso (C, T, E, F) y promedios.
  */
 public class PanelMetricas extends JPanel {
 
-    private static final String[] COLUMNAS = {"Auto", "C", "T", "E", "F", "P"};
+    private static final String[] COLUMNAS = {"Auto", "C", "T", "E", "F"};
     private static final int ALTO_ENCABEZADO = 24;
 
     private final DefaultTableModel modelo = new DefaultTableModel(COLUMNAS, 0) {
@@ -37,7 +37,6 @@ public class PanelMetricas extends JPanel {
     private final JTable tabla = new JTable(modelo);
     private final JLabel esperaPromedio = crearValor();
     private final JLabel finPromedio = crearValor();
-    private final JLabel penalizacionPromedio = crearValor();
     private final JLabel cambiosContexto = crearValor();
     private final JScrollPane desplazamiento;
 
@@ -95,7 +94,6 @@ public class PanelMetricas extends JPanel {
         resumen.setBorder(BorderFactory.createEmptyBorder(6, 2, 0, 2));
         resumen.add(crearResumen("Espera prom.", esperaPromedio));
         resumen.add(crearResumen("Fin prom.", finPromedio));
-        resumen.add(crearResumen("Penaliz. prom.", penalizacionPromedio));
         resumen.add(crearResumen("Cambios contexto", cambiosContexto));
 
         contenedor.add(resumen, BorderLayout.SOUTH);
@@ -135,13 +133,11 @@ public class PanelMetricas extends JPanel {
                     metrica.llegada(),
                     metrica.rafaga(),
                     String.format(Locale.ROOT, "%.1f", (double) metrica.espera()),
-                    String.format(Locale.ROOT, "%.1f", (double) metrica.finalizacion()),
-                    String.format(Locale.ROOT, "%.2f", metrica.penalizacion())});
+                    String.format(Locale.ROOT, "%.1f", (double) metrica.finalizacion())});
         }
 
         esperaPromedio.setText(String.format(Locale.ROOT, "%.2f", resumen.esperaPromedio()));
         finPromedio.setText(String.format(Locale.ROOT, "%.2f", resumen.finalizacionPromedio()));
-        penalizacionPromedio.setText(String.format(Locale.ROOT, "%.2f", resumen.penalizacionPromedio()));
         cambiosContexto.setText(String.valueOf(resumen.cambiosContexto()));
         ajustarAlturaTabla(filas.size());
     }

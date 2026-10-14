@@ -7,20 +7,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Contrato común de los motores de planificación.
- *
- * <p>Expone el ciclo de vida de la simulación, el catálogo de procesos y el estado que la vista
- * necesita para pintarse. Cada algoritmo vive en su propio paquete y aporta únicamente la política
- * de selección y cesión mediante {@link PlanificadorBase}.
- */
 public interface Planificador {
 
-    // Ciclo de vida de la simulación
-
     void restablecerProcesos();
-
-    void reiniciar();
 
     void iniciar();
 
@@ -30,10 +19,6 @@ public interface Planificador {
 
     void detener();
 
-    void establecerVelocidad(double velocidad);
-
-    int periodoTemporizador();
-
     boolean avanzar();
 
     // Catálogo de procesos
@@ -41,20 +26,6 @@ public interface Planificador {
     List<Proceso> getProcesos();
 
     List<Proceso> getProcesosOrdenados();
-
-    Proceso buscarProceso(String id);
-
-    int maximoProcesos();
-
-    int minimoProcesos();
-
-    Proceso getSiguienteProcesoExtra();
-
-    Proceso crearProcesoExtra(int llegada, int rafaga);
-
-    void agregarProceso(Proceso proceso);
-
-    boolean quitarProceso();
 
     // Estado para la vista
 

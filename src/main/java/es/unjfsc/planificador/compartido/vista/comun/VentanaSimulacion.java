@@ -23,11 +23,11 @@ public abstract class VentanaSimulacion extends JFrame {
     private final LogicaVisual logicaVisual;
     private final Timer temporizador;
 
+    private static final int PERIODO_FIJO = 500;
+
     private final JButton botonIniciar = Tema.boton(Tema.REPRODUCIR + " Iniciar", true);
     private final JButton botonPausar = Tema.boton(Tema.PAUSA + " Pausar");
     private final JButton botonReiniciar = Tema.boton(Tema.REINICIAR + " Reiniciar");
-    private final Map<Double, ComponentesRedondeados.Boton> botonesVelocidad = new LinkedHashMap<>();
-    private double velocidad = 1;
 
     private final JPanel carriles = Tema.panel(Tema.FONDO);
     private final JPanel cola = Tema.panel(Tema.FONDO);
@@ -47,11 +47,10 @@ public abstract class VentanaSimulacion extends JFrame {
         this.planificador = planificador;
         this.logicaVisual = logicaVisual;
 
-        temporizador = new Timer(planificador.periodoTemporizador(), this::manejarTick);
+        temporizador = new Timer(PERIODO_FIJO, this::manejarTick);
         temporizador.setRepeats(true);
 
-        panelConfiguracion = new PanelConfiguracion(planificador, logicaVisual,
-                this::abrirDialogoNuevoAuto, this::quitarProceso);
+        panelConfiguracion = new PanelConfiguracion(planificador, logicaVisual);
         panelGantt = new PanelGantt(planificador);
 
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
@@ -115,6 +114,10 @@ public abstract class VentanaSimulacion extends JFrame {
         return List.of();
     }
 
+    protected Planificador getPlanificador() {
+        return planificador;
+    }
+
     private JPanel crearControles() {
         JPanel controles = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         controles.setOpaque(false);
@@ -130,15 +133,6 @@ public abstract class VentanaSimulacion extends JFrame {
             for (JComponent control : controlesCaso) {
                 controles.add(control);
             }
-        }
-
-        controles.add(javax.swing.Box.createHorizontalStrut(10));
-
-        for (double valor : new double[]{0.5, 1, 2}) {
-            ComponentesRedondeados.Boton boton = Tema.botonCompacto(valor + "x");
-            boton.setToolTipText("Velocidad de la simulación");
-            botonesVelocidad.put(valor, boton);
-            controles.add(boton);
         }
 
         return controles;
@@ -204,11 +198,6 @@ public abstract class VentanaSimulacion extends JFrame {
         botonIniciar.addActionListener(this::iniciarSimulacion);
         botonPausar.addActionListener(this::alternarPausa);
         botonReiniciar.addActionListener(e -> reiniciarSimulacion());
-
-        for (Map.Entry<Double, ComponentesRedondeados.Boton> entrada : botonesVelocidad.entrySet()) {
-            ComponentesRedondeados.Boton boton = entrada.getValue();
-            boton.addActionListener(e -> establecerVelocidad(entrada.getKey()));
-        }
     }
 
     // ------------------------------------------------------------------
@@ -217,7 +206,7 @@ public abstract class VentanaSimulacion extends JFrame {
 
     private void iniciarSimulacion(ActionEvent evento) {
         planificador.iniciar();
-        temporizador.setDelay(planificador.periodoTemporizador());
+        temporizador.setDelay(PERIODO_FIJO);
         temporizador.start();
         actualizarTodo();
     }
@@ -236,56 +225,6 @@ public abstract class VentanaSimulacion extends JFrame {
         planificador.restablecerProcesos();
         panelConfiguracion.reconstruir();
         actualizarTodo();
-    }
-
-    private void establecerVelocidad(double valor) {
-        velocidad = valor;
-        planificador.establecerVelocidad(valor);
-        temporizador.setDelay(planificador.periodoTemporizador());
-        actualizarBotones();
-    }
-
-    private void abrirDialogoNuevoAuto() {
-        if (planificador.getProcesos().size() >= planificador.maximoProcesos()) {
-            JOptionPane.showMessageDialog(this,
-                    "Máximo " + planificador.maximoProcesos() + " autos alcanzado.", "Límite alcanzado",
-                    JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        Proceso sugerencia = planificador.getSiguienteProcesoExtra();
-        String id = sugerencia == null ? "?" : sugerencia.getId();
-        int llegadaSugerida = sugerencia == null ? 3 : sugerencia.getLlegada();
-        int rafagaSugerida = sugerencia == null ? 5 : sugerencia.getRafaga();
-
-        boolean estabaCorriendo = planificador.isEjecutando() && !planificador.isPausado();
-        if (estabaCorriendo) {
-            planificador.pausar();
-            actualizarBotones();
-        }
-
-        DialogoNuevoAuto dialogo = new DialogoNuevoAuto(this, id, llegadaSugerida, rafagaSugerida);
-        dialogo.setVisible(true);
-
-        if (dialogo.isConfirmado()) {
-            Proceso nuevo = planificador.crearProcesoExtra(dialogo.getLlegada(), dialogo.getRafaga());
-            if (nuevo != null) {
-                planificador.agregarProceso(nuevo);
-                panelConfiguracion.reconstruir();
-            }
-        }
-
-        if (estabaCorriendo && planificador.isEjecutando()) {
-            planificador.continuar();
-        }
-        actualizarTodo();
-    }
-
-    private void quitarProceso() {
-        if (planificador.quitarProceso()) {
-            panelConfiguracion.reconstruir();
-            actualizarTodo();
-        }
     }
 
     // ------------------------------------------------------------------
@@ -318,13 +257,10 @@ public abstract class VentanaSimulacion extends JFrame {
         botonIniciar.setEnabled(!ejecutando);
         botonPausar.setEnabled(ejecutando);
         botonPausar.setText(planificador.isPausado() ? Tema.REPRODUCIR + " Continuar" : Tema.PAUSA + " Pausar");
-        for (Map.Entry<Double, ComponentesRedondeados.Boton> entrada : botonesVelocidad.entrySet()) {
-            Tema.activarBotonCompacto(entrada.getValue(), entrada.getKey() == velocidad);
-        }
         for (JComponent control : controlesCaso) {
             control.setEnabled(!ejecutando);
         }
-        panelConfiguracion.actualizarBotones();
+        panelConfiguracion.actualizarEdicion();
     }
 
     private void actualizarCarriles() {

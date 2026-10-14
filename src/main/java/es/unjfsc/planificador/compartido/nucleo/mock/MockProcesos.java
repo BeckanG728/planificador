@@ -15,10 +15,7 @@ public final class MockProcesos {
 
     private MockProcesos() {
     }
-
-    /**
-     * Copias nuevas de los cinco procesos, listas para simularse.
-     */
+    
     public static List<Proceso> nuevos() {
         return PLANTILLAS.stream().map(Proceso::new).toList();
     }

@@ -1,20 +1,18 @@
-# Planificador de procesos — cómo funciona cada caso
+# Planificador de procesos
 
-Simulador de planificación de un solo CPU con cinco algoritmos. Esta guía explica la
-lógica de funcionamiento de cada caso, sin código: por cada punto se indica en qué
-archivo ocurre esa lógica.
+Simulador de planificación de CPU en Java (Swing) con 6 planificadores: `FIFO`, `SJF`,
+`Prioridades`, `Prioridades apropiativo`, `Round Robin` y `SRTF`.
+Cada algoritmo implementa el mismo contrato (`motor/Planificador.java`) con su propia
+política de selección y cesión. La vista solo observa al núcleo.
 
-Mapa rápido: la lógica vive en `compartido.nucleo` (modelo + mock + contrato + CPU en
-`motor/` + planificadores en `algoritmos/no_apropiativos/` y
-`algoritmos/apropiativos/`) y todo lo visual vive en `compartido.vista` (paneles
-comunes en `comun/` y una ventana por caso en `casos/<algoritmo>/`). La vista solo
-observa al núcleo, nunca al revés.
+## 1. Base común a todos los algoritmos
 
-## Los procesos: un único mock
+### 1.1 Procesos y mock inicial
 
-Todos los casos parten de la misma carrera, la de
-`compartido/nucleo/mock/MockProcesos.java`, con cinco procesos fijos que no se dan de alta
-ni de baja:
+Modelo en `compartido/nucleo/modelo/Proceso.java`: cada proceso guarda `C` (llegada),
+`T` (ráfaga), `P` (prioridad), `tiempoRestante`, `tiempoInicio` y `tiempoFinalizacion`.
+
+Todos los casos parten del mismo mock (`compartido/nucleo/mock/MockProcesos.java`):
 
 | Proceso | A | B | C | D | E |
 |---|---|---|---|---|---|
@@ -22,160 +20,160 @@ ni de baja:
 | T (ráfaga) | 5 | 2 | 3 | 2 | 4 |
 | P (prioridad) | 3 | 1 | 5 | 4 | 2 |
 
-El mock lleva los tres datos, pero cada algoritmo usa solo los que necesita: FIFO, SJF,
-SRTF y Round Robin ignoran P; los demás ignoran el turno en cola. Los valores se pueden
-cambiar mientras la simulación está detenida, en el panel de parámetros; el botón
-Reiniciar recupera el mock original.
+`FIFO`, `SJF`, `SRTF` y `Round Robin` ignoran `P`. Los valores se pueden editar
+mientras la simulación está detenida; Reiniciar recupera el mock.
 
-## Motor común: CPU + planificador (vale para los seis casos)
+### 1.2 Motor: reloj, CPU y tick
 
-El contrato está en `compartido/nucleo/motor/Planificador.java`, la CPU compartida en
-`compartido/nucleo/motor/CPU.java` y cada algoritmo implementa por sí mismo el mismo
-esqueleto de simulación, de principio a fin, en su propio archivo
-(`compartido/nucleo/algoritmos/no_apropiativos/` o `apropiativos/` según el caso).
-No hay clase base
-común: cada caso se lee entero, con su decisión y su política.
+- CPU (`compartido/nucleo/motor/CPU.java`): solo guarda al dueño, ejecuta 1 unidad
+  (`ejecutar(reloj)`) y registra el segmento Gantt `[reloj-1, reloj)`. No decide ni
+  lleva el reloj.
+- Planificador: lleva el `reloj` (empieza en `0`), despacha al primer apto en
+  `iniciar()` y avanza de a 1 unidad en `avanzar()`.
+- Orden fijo de cada tick (vale para los 6 casos):
+  1. `reloj++`; el dueño ejecuta 1 unidad. Si terminó su ráfaga, se marca
+     `TERMINADO` con `tiempoFinalizacion = reloj` y libera la CPU
+     (en RR además se controla el quantum, ver §3.5).
+  2. Las llegadas con `C == reloj` pasan a `ESPERANDO` (salvo que sean el dueño).
+  3. Evaluación apropiativa (solo `SRTF` y `Prioridades apropiativo`): si hay un
+     apto estrictamente mejor que el dueño, el dueño vuelve a `ESPERANDO` y libera.
+  4. Si la CPU quedó libre, se despacha al siguiente según la política. Lo
+     despachado rige desde el próximo tick: nadie ejecuta antes de haber llegado.
+- Un proceso es apto si `tiempoRestante > 0`, no está `TERMINADO` y `C <= reloj`.
+- Cambios de contexto: se cuenta 1 cada vez que el dueño pasa directamente de un
+  proceso a otro distinto.
 
-- La CPU (`motor/CPU.java`) es el recurso compartido: guarda al dueño actual,
-  ejecuta una unidad de su trabajo y registra el segmento del Gantt. No decide,
-  no gestiona colas y no lleva el reloj. Es soporte: no se explica en clase.
-- El planificador decide quién obtiene la CPU (`seleccionar()`, admisión de
-  llegadas, interrupciones, cola de Round Robin) y lleva el reloj que alimenta el
-  temporizador.
+### 1.3 Métricas
 
-- El reloj empieza en 0. Al iniciar, entran los procesos con llegada 0 y se despacha
-  al primero.
-- Cada avance suma una unidad al reloj y ocurre siempre en este orden: el dueño
-  ejecuta una unidad `[reloj-1, reloj)` que queda registrada como segmento del Gantt
-  (y cede si terminó; en Round Robin, si agotó el quantum); después entran las
-  llegadas de ese instante (en Round Robin, al final de la cola, por delante del
-  saliente); por último, si el CPU quedó libre, se despacha al siguiente según la
-  política. Lo despachado rige desde el próximo tick: nadie ejecuta antes de haber
-  llegado.
-- Regla de llegadas que cumplen todos: si el CPU está libre en el instante en que
-  entra un proceso, ese proceso queda despachado y empieza en el tick siguiente;
-  si otro está usando el CPU, el recién llegado espera (o lo interrumpe, si la
-  política apropiativa lo manda).
-- Por defecto (no apropiativo) un proceso cede el CPU solo cuando agota su ráfaga.
-- Los segmentos `[inicio, fin)` del diagrama de Gantt se registran en
-  `compartido/nucleo/modelo/Segmento.java`, donde el instante `fin` es exclusivo.
-- Cada proceso guarda llegada (C), ráfaga (T), lo que le resta, y sus instantes de
-  inicio y fin (F) en `compartido/nucleo/modelo/Proceso.java`; ahí mismo vive la
-  prioridad (P) del caso de prioridades. Round Robin usa una `Queue` propia, no un
-  campo en el proceso. La espera se deriva al final como E = F − C − T. Los resúmenes
-  y promedios (espera, retorno, cambios de contexto) se calculan en
-  `compartido/nucleo/modelo/ResumenMetricas.java` (detalle por proceso en
-  `compartido/nucleo/modelo/MetricaProceso.java`, estados en
-  `compartido/nucleo/modelo/EstadoProceso.java`).
+En `compartido/nucleo/modelo/MetricaProceso.java` y `ResumenMetricas.java`:
 
-## Caso FIFO (el primero que llega es el primero que se atiende)
+- Retorno (turnaround) por proceso: `F = tiempoFinalizacion − C`.
+- Espera por proceso: `E = F − T`.
+- Promedios: `esperaPromedio` y `finalizacionPromedio` (media aritmética).
+- En curso (proceso no terminado): `F = reloj − C`, `E = reloj − C − ejecutado`.
 
-Lógica en `compartido/nucleo/algoritmos/no_apropiativos/PlanificadorFIFO.java`:
+## 2. Clasificación
 
-- Al quedar libre el CPU se elige al proceso que lleva más tiempo esperando (menor
-  instante de llegada; a igual llegada, orden alfabético).
-- Cada proceso conserva el CPU hasta terminar su ráfaga completa, sin interrupciones.
-- Un proceso que llega mientras otro se ejecuta espera su turno; como el criterio es
-  la llegada, nunca puede adelantar a quien ya esperaba. Si llega justo cuando el
-  CPU queda libre, arranca de inmediato.
-- Demostración visual: `compartido/vista/casos/fifo/` (ventana, presentación y punto
-  de entrada).
+| Algoritmo | Tipo | Criterio de despacho | Cede la CPU cuando |
+|---|---|---|---|
+| FIFO | No apropiativo | Menor `C` | Solo al terminar |
+| SJF | No apropiativo | Menor `T` | Solo al terminar |
+| Prioridades | No apropiativo | Menor `P` | Solo al terminar |
+| Prioridades apropiativo | Apropiativo | Menor `P` | Al terminar o ante `P` estrictamente mejor |
+| Round Robin | Apropiativo | Orden de llegada a la cola | Al terminar o al agotar el quantum |
+| SRTF | Apropiativo | Menor tiempo restante | Al terminar o al llegar uno estrictamente más corto |
 
-## Caso SJF (el trabajo más corto primero, sin interrumpir)
+No apropiativo = el dueño conserva la CPU hasta agotar su ráfaga.
+Apropiativo = el dueño puede ser desalojado antes de terminar.
 
-Lógica en `compartido/nucleo/algoritmos/no_apropiativos/PlanificadorSJF.java`:
+## 3. Algoritmos en detalle
 
-- Al quedar libre el CPU se elige al proceso apto con la ráfaga más corta; los
-  empates se rompen por llegada y luego por orden alfabético.
-- Igual que FIFO, cada proceso ejecuta su ráfaga completa sin interrupciones.
-- Que una llegada recién entrada gane el despacho por ser más corta no es un salto
-  de cola: es la definición del algoritmo (en cada terminación se elige al más corto
-  entre todos los llegados, incluida la llegada de ese mismo instante).
-- Demostración visual: `compartido/vista/casos/sjf/`.
+### 3.1 FIFO — primero en llegar, primero en servirse
 
-## Casos no apropiativos y apropiativos
+Archivo: `compartido/nucleo/algoritmos/no_apropiativos/PlanificadorFIFO.java`.
+Vista: `compartido/vista/casos/fifo/`.
 
-No apropiativos (`FIFO`, `SJF`, `Prioridades`): el dueño conserva el CPU hasta
-terminar su ráfaga. Apropiativos (`SRTF`, `Round Robin`,
-`Prioridades apropiativo`): el dueño puede ceder antes de terminar.
+- Idea: cola por orden de llegada. Justo y sin inanición si las ráfagas son acotadas,
+  pero penaliza a los cortos que llegan detrás de uno largo (efecto convoy).
+- Selección entre aptos: menor `C`; empate → orden alfabético de `id`.
+- Cesión: solo al terminar (`tiempoRestante == 0`).
+- Llegadas: si la CPU está libre en ese instante, la llegada se despacha y arranca
+  en el tick siguiente; si está ocupada, espera. Una llegada nunca adelanta a quien
+  ya esperaba.
 
-## Caso Prioridades (manda el número de prioridad, no apropiativo)
+### 3.2 SJF — trabajo más corto primero (no apropiativo)
 
-Lógica en `compartido/nucleo/algoritmos/no_apropiativos/PlanificadorPrioridades.java`,
-con el dato extra de prioridad en
-`compartido/nucleo/modelo/Proceso.java`:
+Archivo: `compartido/nucleo/algoritmos/no_apropiativos/PlanificadorSJF.java`.
+Vista: `compartido/vista/casos/sjf/`.
 
-- Al despachar se elige al proceso con el número de prioridad más bajo (el 1 es la
-  más alta); los empates se rompen por ráfaga más corta y luego por llegada.
-- El dueño conserva el CPU hasta terminar su ráfaga, igual que FIFO/SJF.
-- La columna extra de prioridad se declara en
-  `compartido/vista/casos/prioridades/LogicaVisualPrioridades.java`.
+- Idea: minimiza la espera promedio entre los no apropiativos, a costa de posible
+  inanición de los largos si siguen llegando cortos.
+- Selección entre aptos: menor `T` (ráfaga original, no restante); empate → menor
+  `C` → orden alfabético.
+- Cesión: solo al terminar. La decisión se toma únicamente cuando la CPU queda
+  libre, evaluando a todos los llegados hasta ese instante (incluida la llegada
+  de ese mismo tick).
+- Diferencia con SRTF: aquí un corto que llega en mitad de una ejecución espera;
+  en SRTF la interrumpe.
 
-## Caso Prioridades apropiativo (misma selección, con interrupción)
+### 3.3 Prioridades — manda el número de prioridad (no apropiativo)
 
-Lógica en
-`compartido/nucleo/algoritmos/apropiativos/PlanificadorPrioridadesApropiativo.java`:
+Archivo: `compartido/nucleo/algoritmos/no_apropiativos/PlanificadorPrioridades.java`.
+Vista: `compartido/vista/casos/prioridades/` (variante no apropiativa).
 
-- Mismo criterio de despacho que Prioridades.
-- El dueño cede en cuanto aparece un proceso de prioridad estrictamente mejor;
-  una prioridad igual no lo desaloja. La disputa es siempre por la siguiente unidad
-  de CPU, nunca se le quita al dueño lo ya ejecutado.
-- En la ventana del caso hay dos botones para elegir la variante antes de simular
-  (lógica de esos botones en
-  `compartido/vista/casos/prioridades/VentanaPrioridades.java`): cada botón abre su
-  propio planificador, sin modo compartido.
+- Idea: el `1` es la prioridad más alta. Útil para procesos urgentes; riesgo de
+  inanición de prioridad baja.
+- Selección entre aptos: menor `P`; empate → menor `T` → menor `C` →
+  orden alfabético.
+- Cesión: solo al terminar, igual que FIFO/SJF. Una llegada con mejor prioridad
+  espera al próximo despacho, no interrumpe.
 
-## Caso Round Robin (turnos de un quantum en cola circular)
+### 3.4 Prioridades apropiativo — misma selección, con desalojo
 
-Lógica en `compartido/nucleo/algoritmos/apropiativos/PlanificadorRoundRobin.java`,
-con una `Queue` propia como cola circular:
+Archivo: `compartido/nucleo/algoritmos/apropiativos/PlanificadorPrioridadesApropiativo.java`.
+Vista: `compartido/vista/casos/prioridades/` (botón de variante en
+`VentanaPrioridades.java`).
 
-- Cada proceso ocupa el CPU durante un quantum (2 unidades por defecto) y al
-  agotarlo vuelve al final de la cola; al terminar su ráfaga sale del sistema.
-- Los nuevos de cada instante entran a la cola antes de que el saliente vuelva a
-  ella, así que el saliente queda detrás de las llegadas de ese instante. Si el CPU
-  está libre, la llegada de ese instante arranca de inmediato.
-- Con el mock y Q = 2 se ve: A ejecuta [0-2), C y D esperan en cola; luego rotan
-  C, D, A, B, E hasta agotar sus ráfagas.
-- El quantum se edita en el campo Q de la cabecera (lógica en
-  `compartido/vista/casos/roundrobin/VentanaRoundRobin.java`) y la insignia muestra
-  el valor vigente (`compartido/vista/casos/roundrobin/LogicaVisualRoundRobin.java`).
+- Selección: idéntica a Prioridades no apropiativo.
+- Desalojo: tras registrar las llegadas de cada tick, si el mejor apto tiene
+  `P` estrictamente menor que la del dueño, el dueño vuelve a `ESPERANDO` y se
+  despacha al mejor en ese mismo tick (rige desde el siguiente). Igual prioridad
+  no desaloja.
+- El desalojo solo disputa la siguiente unidad de CPU; lo ya ejecutado no se pierde
+  (queda en `tiempoRestante`).
 
-## Caso SRTF (el menor tiempo restante, interrumpiendo)
+### 3.5 Round Robin — turnos de un quantum en cola circular
 
-Lógica en `compartido/nucleo/algoritmos/apropiativos/PlanificadorSRTF.java`:
+Archivo: `compartido/nucleo/algoritmos/apropiativos/PlanificadorRoundRobin.java`
+(`QUANTUM_INICIAL = 2`). Vista: `compartido/vista/casos/roundrobin/`.
 
-- Siempre se prefiere al proceso con menos tiempo restante; los empates se rompen
-  por llegada y luego por orden alfabético.
-- Cuando entra un proceso con menos restante que el dueño del CPU, lo suspende y
-  toma el CPU en la siguiente unidad; si empatan, el dueño se mantiene y la llegada
-  espera.
-- A diferencia de SJF, aquí el restante baja conforme se ejecuta, por eso la
-  comparación se repite en cada llegada en lugar de solo en cada terminación.
-- Demostración visual: `compartido/vista/casos/srtf/`.
+- Idea: reparto equitativo por turnos. Quantum pequeño → más cambios de contexto;
+  quantum grande → tiende a FIFO.
+- Estructura: `Queue<Proceso>` propia. Al iniciar entran los de `C == 0`; cada tick
+  los nuevos (`C == reloj`) entran al final antes de reencolar al saliente, así que
+  el saliente queda detrás de las llegadas de ese instante.
+- Cesión: al terminar su ráfaga sale del sistema; al agotar el quantum
+  (`unidadesEnTurno >= quantum`) vuelve al final de la cola como `ESPERANDO`.
+- Despacho: cabeza de la cola que siga apta. Si la CPU está libre, una llegada de
+  ese instante arranca de inmediato.
+- Quantum editable en el campo `Q` de la cabecera
+  (`VentanaRoundRobin.java`); solo tiene efecto antes de iniciar
+  (`establecerQuantum()`, mínimo 1).
 
-## Parte visual común (apoya la explicación en vivo)
+### 3.6 SRTF — menor tiempo restante primero (SJF apropiativo)
 
-- `compartido/vista/comun/VentanaSimulacion.java`: ventana base con botones de
-  transporte, control de velocidad, temporizador y refresco.
-- `compartido/vista/comun/PanelGantt.java`: dibuja el Gantt a partir de los
-  segmentos del núcleo.
-- `compartido/vista/comun/PanelConfiguracion.java`: parámetros C y T de cada
-  proceso, más la columna extra que declare cada caso.
-- `compartido/vista/comun/PanelMetricas.java`: tabla de E, F y promedios.
-- `compartido/vista/comun/Tema.java` y demás paneles: paleta, carriles y
-  componentes de la interfaz.
-- Cada caso se abre desde su punto de entrada (`MainFIFO`, `MainSJF`,
-  `MainPrioridades`, `MainRoundRobin`, `MainSRTF` en `compartido/vista/casos/`) con
-  su ventana y su presentación (`Ventana*` y `LogicaVisual*`).
+Archivo: `compartido/nucleo/algoritmos/apropiativos/PlanificadorSRTF.java`.
+Vista: `compartido/vista/casos/srtf/`.
 
-## Tabla resumen para exponer
+- Idea: versión apropiativa de SJF; óptima en espera promedio teórica, con más
+  cambios de contexto y posible inanición de largos.
+- Selección entre aptos: menor `tiempoRestante` (baja a medida que ejecuta);
+  empate → menor `C` → orden alfabético.
+- Desalojo: en cada tick, tras las llegadas, si el mejor apto tiene restante
+  estrictamente menor que el dueño, el dueño vuelve a `ESPERANDO` y se despacha
+  al mejor. El empate mantiene al dueño (no hay desalojo innecesario).
+- A diferencia de SJF, la comparación se repite en cada llegada, no solo en cada
+  terminación.
 
-| Algoritmo | Tipo | Criterio de despacho | Cuándo cede el CPU | Archivos de lógica |
-|---|---|---|---|---|
-| FIFO | No apropiativo | Menor llegada | Solo al terminar | `nucleo/algoritmos/no_apropiativos/PlanificadorFIFO.java` |
-| SJF | No apropiativo | Menor ráfaga | Solo al terminar | `nucleo/algoritmos/no_apropiativos/PlanificadorSJF.java` |
-| Prioridades | No apropiativo | Menor nº de prioridad | Solo al terminar | `nucleo/algoritmos/no_apropiativos/PlanificadorPrioridades.java` |
-| Prioridades apropiativo | Apropiativo | Menor nº de prioridad | Al terminar o ante prioridad estrictamente mejor | `nucleo/algoritmos/apropiativos/PlanificadorPrioridadesApropiativo.java` |
-| Round Robin | Apropiativo | Orden de la cola | Al agotar el quantum o al terminar | `nucleo/algoritmos/apropiativos/PlanificadorRoundRobin.java` |
-| SRTF | Apropiativo | Menor tiempo restante | Al terminar o al llegar uno estrictamente más corto | `nucleo/algoritmos/apropiativos/PlanificadorSRTF.java` |
+## 4. Estructura del proyecto y ejecución
+
+```text
+src/main/java/es/unjfsc/planificador/
+  compartido/nucleo/
+    modelo/      Proceso, Segmento, EstadoProceso, MetricaProceso, ResumenMetricas
+    mock/        MockProcesos
+    motor/       Planificador (contrato), CPU
+    algoritmos/
+      no_apropiativos/  PlanificadorFIFO, PlanificadorSJF, PlanificadorPrioridades
+      apropiativos/     PlanificadorSRTF, PlanificadorRoundRobin,
+                        PlanificadorPrioridadesApropiativo
+  compartido/vista/
+    comun/       VentanaSimulacion, PanelGantt, PanelConfiguracion, PanelMetricas, Tema
+    casos/fifo | sjf | prioridades | roundrobin | srtf/
+      Main* (punto de entrada), Ventana*, LogicaVisual*
+```
+
+- Requisitos: Java 21, Maven (`pom.xml`).
+- Cada caso se lanza desde su `Main*` (p. ej. `MainFIFO`, `MainSRTF`).
+- Gantt: segmentos `[inicio, fin)` con `fin` exclusivo (`modelo/Segmento.java`),
+  dibujados en `vista/comun/PanelGantt.java`.

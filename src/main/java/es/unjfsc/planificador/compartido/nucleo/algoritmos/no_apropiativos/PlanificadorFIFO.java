@@ -105,11 +105,6 @@ public class PlanificadorFIFO implements Planificador {
         pausado = false;
     }
 
-    /**
-     * Un tick [reloj-1, reloj): el dueño ejecuta 1, entran las llegadas de ese
-     * instante y, si el CPU quedó libre, se despacha al siguiente (rige desde el
-     * próximo tick, así nadie ejecuta antes de haber llegado).
-     */
     @Override
     public boolean avanzar() {
         if (!ejecutando || pausado) {
